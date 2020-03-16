@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>广东</title>
+    <script src="lib/jquery.min-2.0.0.js"></script>
+    <script src="lib/http_util.js"></script>
+    <script src="lib/clipboard.min.js"></script>
+    <style>
+        table {
+            margin: 0 auto;
+            text-align: center;
+            border-collapse: collapse;
+            border: 1px solid #d4d4d4;
+        }
+
+        tr:nth-child(even) {
+            background: #d4d4d4;
+        }
+
+        th, td {
+            padding: 10px 30px;
+        }
+
+        th {
+            border-bottom: 1px solid #d4d4d4;
+        }
+    </style>
+</head>
+<body>
+<div>
+    <input type="file" id="csvFileInput" onchange="readCSVFile()"/>
+    <div id="content"></div>
+</div>
+
+
+<script>
+  //读取cvs文件数据
+  function readCSVFile() {
+    let reader = new FileReader();
+    reader.readAsText($("#csvFileInput")[0].files[0]);
+    reader.onload = function () {
+      let data = this.result;
+      let allRows = data.split(/\r?\n|\r/);
+      let results = [];
+      for (let singleRow = 0; singleRow < allRows.length; singleRow++) {
+        let rowCells = allRows[singleRow].split(',');
+        let item = [];
+        for (let rowCell = 0; rowCell < rowCells.length; rowCell++) {
+          if (rowCell === 1 || rowCell === 39 || rowCell === rowCells.length - 1) {
+            item.push(rowCells[rowCell].replace(/\s*/g, "").replace(/\"/g,""));
+          }
+        }
+        results.push(item);
+      }
+
+      new Promise(resolve => {
+        let tem = 1;
+        for (let i = 0; i < results.length; i++) {
+          if (i === 0) {
+            results[0].push("是否为广东移动或联通");
+            results[0].push("归属地");
+            continue;
+          }
+          let params = {
+            tel: results[i][2]
+          };
+          request("https://tcc.taobao.com/cc/json/mobile_tel_segment.htm", params)
+            .then(data => {
+              results[i].push(checkPermission(data.carrier));
+              results[i].push(data.carrier);
+              tem += 1;
+              if (tem === results.length) {
+                resolve();
+              }
+
+            });
+        }
+      }).then(() => {
+        showTable(results);
+      });
+
+      console.log(results);
+    }
+  }
+
+
+  function showTable(results) {
+
+    results.sort(function (a, b) {
+      let aTemp = 0;
+      let bTemp = 0;
+      if (a[3]) {
+        aTemp = 1;
+      }
+      if (b[3]) {
+        bTemp = 1;
+      }
+      return bTemp - aTemp;
+    });
+
+
+    $("#content").empty();
+    let table = '<table>';
+    for (let i = 0; i < results.length; i++) {
+      if (i === 0) {
+        table += '<thead>';
+        table += '<tr>';
+      } else {
+        table += '<tr>';
+      }
+      let item = results[i];
+      for (let j = 0; j < item.length; j++) {
+        if (i === 0) {
+          table += '<th>';
+          table += item[j];
+          table += '</th>';
+        } else {
+          if (j === 3) {
+            if (item[j]) {
+              table += "<td>";
+              table += "是";
+            } else {
+              table += "<td style='background-color: brown'>";
+              table += "否";
+            }
+          } else {
+            table += '<td>';
+            table += item[j];
+          }
+          table += '</td>';
+        }
+      }
+      if (i === 0) {
+        table += '</tr>';
+        table += '</thead>';
+        table += '<tbody>';
+      } else {
+        table += '</tr>';
+      }
+    }
+    table += '</tbody>';
+    table += '</table>';
+    $('#content').append(table);
+  }
+
+
+  function checkPermission(carrier) {
+    return carrier === "广东联通" || carrier === "广东移动";
+
+  }
+
+
+  function copyId(id) {
+    console.log(id);
+    let clipboard = new ClipboardJS(".copyBtn");
+    clipboard.on("success", () => {
+      console.log("复制成功！");
+    });
+  }
+
+
+</script>
+</body>
+</html>
